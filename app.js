@@ -160,10 +160,20 @@ function setLog(k,v){
   if(!canEdit())return;
   const L=S.logs[day]=S.logs[day]||{};L[me]=Object.assign({},L[me],{[k]:v});commit();
 }
-function streak(id){
-  let n=0,d=new Date(today()+'T00:00:00');const on=x=>((S.logs[fmt(x)]||{})[id]||{}).supp;
+function streak(id,key='supp'){
+  let n=0,d=new Date(today()+'T00:00:00');const on=x=>((S.logs[fmt(x)]||{})[id]||{})[key];
   if(!on(d))d.setDate(d.getDate()-1);
   while(on(d)){n++;d.setDate(d.getDate()-1)}return n;
+}
+function checkInSection(key,title,pendingText,doneText){
+  const L=S.logs[day]||{},order=ids().includes(me)?[me,...ids().filter(i=>i!==me)]:ids();
+  const rows=order.map(id=>{const done=!!(L[id]||{})[key];return h('div',{class:'row',style:'margin:6px 0'},dotOf(id),h('span',{style:'flex:1'},nm(id)+(id===me?'（我）':'')),
+    id===me?h('button',{class:'tog'+(done?' on':''),style:'width:auto;margin:0;padding:8px 14px','aria-pressed':String(done),disabled:!canEdit(),onclick:()=>setLog(key,!done)},done?doneText:pendingText):h('span',{class:done?'okline':'mute',style:'margin:0'},done?doneText:'還沒打卡'))});
+  const mm=ym(today()),stats=ids().map(id=>{
+    const count=Object.entries(S.logs).filter(([d,v])=>ym(d)===mm&&(v[id]||{})[key]).length;
+    return h('div',{class:'stat'},h('div',{class:'row'},dotOf(id),nm(id)),h('b',{},'本月 '+count+' 天'),h('span',{class:'mute'},'連續 '+streak(id,key)+' 天'));
+  });
+  return h('section',{class:'sec'},h('h2',{},title),rows,h('div',{class:'grid2'},stats));
 }
 let calM=today().slice(0,7);
 const eventPeople=e=>e.together?ids():[e.who];
@@ -182,13 +192,6 @@ function dayView(){
   const addE=()=>{if(!canEdit())return;const v=ti.value.trim();if(!v)return ti.focus();S.ev.push({id:uid(),date:day,time:tm.value,title:v,who:me,together:together.checked});commit()};
   ti.addEventListener('keydown',e=>{if(e.key==='Enter')addE()});
   const evs=evOf(day).map(e=>h('div',{class:'tx'},h('span',{class:'row',style:'gap:3px'},eventPeople(e).map(dotOf)),h('div',{style:'width:54px;font-weight:700'},e.time||'全天'),h('div',{style:'flex:1;min-width:0'},e.title),h('span',{class:'mute'},e.together?'一起':nm(e.who)),delBtn(()=>{S.ev=S.ev.filter(t=>t.id!==e.id)})));
-  const L=S.logs[day]||{},order=ids().includes(me)?[me,...ids().filter(i=>i!==me)]:ids();
-  const supp=order.map(id=>{const e=L[id]||{};return h('div',{class:'row',style:'margin:6px 0'},dotOf(id),h('span',{style:'flex:1'},nm(id)+(id===me?'（我）':'')),
-    id===me&&canEdit()?h('button',{class:'tog'+(e.supp?' on':''),style:'width:auto;margin:0;padding:8px 14px',onclick:()=>setLog('supp',!e.supp)},e.supp?'💊 已吃 ✓':'💊 吃了嗎？'):h('span',{class:e.supp?'okline':'mute',style:'margin:0'},e.supp?'💊 已吃 ✓':'還沒打卡'))});
-  const mm=ym(today()),stats=ids().map(id=>{
-    const c=Object.entries(S.logs).filter(([d,v])=>ym(d)===mm&&(v[id]||{}).supp).length;
-    return h('div',{class:'stat'},h('div',{class:'row'},dotOf(id),nm(id)),h('b',{},'本月 '+c+' 天'),h('span',{class:'mute'},'連續 '+streak(id)+' 天'));
-  });
   return h('div',{},
     h('section',{class:'sec'},
       h('div',{class:'row dn'},h('button',{class:'ghost','aria-label':'上個月',onclick:()=>shiftC(-1)},'‹'),h('div',{class:'dt'},y+'年'+m+'月'),h('button',{class:'ghost','aria-label':'下個月',onclick:()=>shiftC(1)},'›'),h('button',{class:'ghost',onclick:()=>{day=today();calM=day.slice(0,7);render()}},'今天')),
@@ -196,7 +199,9 @@ function dayView(){
     h('section',{class:'sec'},h('h2',{},label),h('div',{class:'row'},tm,ti,h('button',{class:'btn',onclick:addE},'加入')),
       h('label',{class:'row',style:'margin-top:10px'},together,'一起（兩人）',h('span',{class:'mute'},'未勾選為自己')),
       h('div',{style:'margin-top:6px'},evs.length?evs:h('div',{class:'mute'},'這天還沒有行程，輸入時間和內容就能加入（時間可以不填）。'))),
-    h('section',{class:'sec'},h('h2',{},'💊 保健品打卡'),supp,h('div',{class:'grid2'},stats)));
+    checkInSection('supp','💊 保健品打卡','💊 吃了嗎？','💊 已吃 ✓'),
+    checkInSection('strength','🏋️ 重訓打卡','🏋️ 重訓打卡','🏋️ 已完成 ✓'),
+    checkInSection('cardio','🏃 有氧打卡','🏃 有氧打卡','🏃 已完成 ✓'));
 }
 
 function wishView(){
