@@ -18,15 +18,23 @@ export async function startCloud({onReady,onUpdate,idle}){
  async function rpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
  const button=(text,fn)=>{const b=el('button',text,{className:'btn',type:'button'});b.onclick=()=>run(fn);return b;};
  async function run(fn){if(busy)return;busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);note.textContent='處理中…';try{await fn();}catch(e){note.textContent=errorText(e);}finally{busy=false;root.querySelectorAll('button').forEach(b=>b.disabled=false);}}
- function shell(title){root.replaceChildren(el('h1',title),note);}
+ function shell(title,mode='welcome'){root.className=mode;root.replaceChildren(el('div','OUR LITTLE DAYS',{className:'eyebrow'}),el('h1',title),note);}
  function input(label,type='text'){const wrap=el('label',label),i=el('input',null,{type,required:true});wrap.style.display='block';wrap.style.margin='10px 0';wrap.append(i);return [wrap,i];}
  function backup(data){const a=el('a','下載未儲存的資料');const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob);a.href=u;a.download='我們的小日子-未儲存備份.json';root.append(a);a.onclick=()=>setTimeout(()=>URL.revokeObjectURL(u),1000);}
  function authScreen(){
-  app.hidden=nav.hidden=true;shell('💞 我們的小日子');note.textContent='登入後與另一半共用記帳、行程和願望。';
+  app.hidden=nav.hidden=true;shell('我們的小日子');note.textContent='收支、日常，還有想一起完成的事。';
+  const intro=el('div',null,{className:'welcome-story'});
+  intro.append(el('span','A SHARED LIFE, WELL LIVED',{className:'eyebrow'}),el('h2','日子很小，\n有你就好。'),el('p','把每天的小事好好收起來，\n陪彼此走向下一個想去的地方。'));
+  const art=el('div',null,{className:'journal-art',ariaHidden:'true'});
+  art.innerHTML='<svg viewBox="0 0 320 180" fill="none"><circle cx="235" cy="58" r="35" fill="#e6c5a4"/><path d="M35 154h250" stroke="#c6bdab"/><path d="m68 56 90-13 16 108-90 13Z" fill="#faf8f0" stroke="#b9b49d"/><path d="m158 43 87 15-17 108-54-15Z" fill="#eee9dc" stroke="#b9b49d"/><path d="m158 43 16 108M90 80l44-6m-41 20 44-6m-41 20 44-6m46-20 34 6m-37 8 34 6" stroke="#c0b99f" stroke-linecap="round"/><path d="M252 154c-8-32-5-66 10-91m-13 65c-21-1-25-15-25-15 16-3 23 5 25 15Zm2-26c-13-2-18-16-18-16 17 0 22 11 18 16Zm4-15c18-1 25-17 25-17-18-1-23 8-25 17Zm-6 43c19 0 29-12 29-12-16-6-26 3-29 12Z" stroke="#6f795b" fill="#d3d8c4" stroke-linejoin="round"/><path d="m149 128 16 2-4 29-14-2Z" fill="#ab735d"/></svg>';
+  intro.append(art);root.append(intro);
   const form=el('form'),[ew,email]=input('Email','email'),[pw,password]=input('密碼（至少 8 個字元）','password');
   email.autocomplete='email';password.autocomplete='current-password';password.minLength=8;
   const login=button('登入',()=>authenticate(false)),signup=button('註冊帳號',()=>authenticate(true));
-  form.append(ew,pw,login,document.createTextNode(' '),signup);root.append(form);
+  form.className='auth-form';login.classList.add('full');signup.className='ghost full';
+  const formTitle=el('h2','歡迎回到我們的小日子');const hint=el('p','登入你的雙人生活手帳，接著寫下今天。',{className:'mute'});
+  email.placeholder='you@example.com';password.placeholder='輸入你的密碼';
+  form.append(formTitle,hint,ew,pw,login,signup);root.append(form,el('p','兩個人的日常，一點一滴，都是收藏。',{className:'welcome-footer'}));
   form.onsubmit=e=>{e.preventDefault();run(()=>authenticate(false));};
   async function authenticate(signup){
    if(!form.reportValidity())return;
@@ -47,7 +55,7 @@ export async function startCloud({onReady,onUpdate,idle}){
  async function loadRoom(){
   clearInterval(timer);const data=await rpc('get_space',{});
   if(!data){room=null;roomScreen();return;}
-  room=data.id;version=data.version;shell('💞 雲端共用空間');note.textContent='已載入雲端資料';
+  room=data.id;version=data.version;shell('我們的共用空間','connected');note.textContent='已載入雲端資料';
   const invite=el('input',null,{value:data.invite_code,readOnly:true,'ariaLabel':'雙人邀請碼'});
   root.append(el('p','邀請碼（只分享給另一半）：',{className:'mute'}),invite);accountBar();
   app.hidden=nav.hidden=false;
@@ -63,7 +71,7 @@ export async function startCloud({onReady,onUpdate,idle}){
    catch(e){note.textContent=errorText(e)+' 尚未取得最新資料。';}
   },5000);
  }
- shell('💞 我們的小日子');
+ shell('我們的小日子');
  try{const {data,error}=await client.auth.getSession();if(error)throw error;if(data.session){user=data.session.user;await loadRoom();}else authScreen();}
  catch(e){note.textContent=errorText(e);root.append(button('重試',()=>location.reload()));}
  client.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'&&user){clearInterval(timer);user=null;room=null;authScreen();}});

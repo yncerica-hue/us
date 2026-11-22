@@ -45,8 +45,8 @@ document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()){
 function header(){
   const names=ids().map(id=>h('span',{class:'pill'},dotOf(id),nm(id)+(id===me?'（我）':'')));
   if(ready&&ids().length<2)names.push(h('span',{class:'pill mute'},'等另一半加入'));
-  return h('header',{},h('h1',{},'💞 我們的小日子'),h('div',{class:'row wrap'},names),
-    h('div',{class:'mute',style:'margin-top:6px'},saving?'儲存中，請稍候…':unsaved?'尚未儲存，請先下載備份並重新載入':ready?'雙人雲端空間，每 5 秒更新一次':'連線中…'));
+  return h('header',{class:'journal-header'},h('div',{class:'eyebrow'},'OUR LITTLE DAYS · 生活手帳'),h('h1',{'aria-label':'💞 我們的小日子'},'我們的小日子',h('span',{class:'title-mark','aria-hidden':'true'},' ✳︎')),h('p',{class:'intro'},'把平凡的日子，慢慢過成喜歡的樣子。'),h('div',{class:'row wrap'},names),
+    h('div',{class:'mute',style:'margin-top:6px'},saving?'儲存中，請稍候…':unsaved?'尚未儲存，請先下載備份並重新載入':ready?'一起記錄，為生活留一點餘裕。':'連線中…'));
 }
 function joinCard(){
   if(ids().length>=2)return h('section',{class:'sec'},'這個空間已經有兩位成員了，你目前只能瀏覽。');
@@ -68,7 +68,7 @@ function calc(m){
 const shiftM=n=>{const[y,m]=mon.split('-').map(Number),d=new Date(y,m-1+n,1);mon=d.getFullYear()+'-'+pad(d.getMonth()+1);render()};
 const monBar=()=>h('div',{class:'row dn'},h('button',{class:'ghost','aria-label':'上個月',onclick:()=>shiftM(-1)},'‹'),h('div',{class:'dt'},mon.replace('-','年')+'月'),h('button',{class:'ghost','aria-label':'下個月',onclick:()=>shiftM(1)},'›'));
 const SUBS=[['sum','總覽'],['exp','支出'],['inc','收入'],['yr','年度'],['set','設定']];
-const subNav=()=>h('div',{class:'row wrap',style:'margin:4px 0 8px'},SUBS.map(([k,t])=>h('button',{class:'ghost'+(sub===k?' on':''),onclick:()=>{sub=k;render()}},t)));
+const subNav=()=>h('div',{class:'subnav','aria-label':'記帳分類'},SUBS.map(([k,t])=>h('button',{class:'ghost'+(sub===k?' on':''),onclick:()=>{sub=k;render()}},t)));
 const delBtn=fn=>h('button',{class:'x','aria-label':'刪除',onclick:()=>{if(canEdit()){fn();commit()}}},'✕');
 
 function moneyView(){
@@ -76,7 +76,7 @@ function moneyView(){
 }
 function sumV(){
   const c=calc(mon);
-  const st=(l,v,s)=>h('div',{class:'stat'},h('span',{class:'mute'},l),h('b',{},money(v)),s||null);
+  const st=(l,v,s)=>h('div',{class:'stat'+(l==='估算結餘'?' balance':'')},h('span',{class:'mute'},l),h('b',{},money(v)),s||null);
   const rows=S.cfg.cats.filter(k=>k.life!==false).map(k=>{
     const s=sum(c.life.filter(x=>x.cat===k.n)),b=parseFloat(k.b),has=b>0,over=s>b;
     return h('div',{class:'tx',style:'display:block'},
@@ -86,7 +86,7 @@ function sumV(){
   });
   const per=ids().map(id=>h('div',{class:'stat'},h('div',{class:'row'},dotOf(id),nm(id)),h('div',{class:'mute'},'生活支出 '+money(sum(c.life.filter(x=>x.who===id)))),h('div',{class:'mute'},'計入收入 '+money(sum(c.i.filter(x=>x.who===id&&x.nature==='一般收入'))))));
   return h('div',{},
-    h('section',{class:'sec'},h('div',{class:'grid2'},st('計入收入',c.incOK,c.pend?h('span',{class:'mute'},'待確認 '+money(c.pend)):null),st('生活支出',c.L),st('固定支出（預估）',c.fx),st('估算結餘',c.bal)),
+    h('section',{class:'sec overview'},h('div',{class:'section-heading'},h('h2',{},'這個月的生活'),h('span',{class:'eyebrow'},'MONTHLY NOTES')),h('div',{class:'grid2'},st('計入收入',c.incOK,c.pend?h('span',{class:'mute'},'待確認 '+money(c.pend)):null),st('生活支出',c.L),st('固定支出（預估）',c.fx),st('估算結餘',c.bal)),
       h('div',{class:'mute'},'公司代墊 '+money(c.adv)+'（不算生活支出）；卡費繳款 '+money(c.card)+'（不重複算消費）')),
     h('section',{class:'sec'},h('h2',{},'各分類預算'),rows),
     h('section',{class:'sec'},h('h2',{},'兩個人'),h('div',{class:'grid2'},per)));
@@ -235,7 +235,7 @@ function render(){
   const app=$('#app');app.replaceChildren(header());
   if(!ready)return;
   app.append(tab==='money'?moneyView():tab==='day'?dayView():wishView());
-  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.querySelectorAll('#nav button').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('on',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
 }
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>{tab=b.dataset.tab;render()}));
 

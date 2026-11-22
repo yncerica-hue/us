@@ -6,8 +6,8 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f7f4fb",
-  "theme_color": "#f7f4fb",
+  "background_color": "#f6f3eb",
+  "theme_color": "#f6f3eb",
   "icons": [
     {
       "src": "icons/rabbit-192.png",

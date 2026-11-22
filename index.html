@@ -7,65 +7,21 @@
 <link rel="icon" type="image/png" href="%BASE_URL%icons/rabbit-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="%BASE_URL%icons/rabbit-180.png">
 <link rel="manifest" href="%BASE_URL%manifest.webmanifest">
-<meta name="theme-color" content="#f7f4fb">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="我們的小日子">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<style>
-[hidden]{display:none!important}
-button:disabled{opacity:.55;cursor:wait}
-
-:root{--bg:#f7f4fb;--sf:#fff;--ink:#2a2340;--mute:#7d7592;--ln:#e6e0f0;--a:#ff5c8a;--b:#4f7cff;--ok:#2fb584;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#17131f;--sf:#221c2e;--ink:#f1ecfa;--mute:#a79fba;--ln:#352d46;--a:#ff7a9f;--b:#7a9bff;--ok:#4cc79c}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#17131f;--sf:#221c2e;--ink:#f1ecfa;--mute:#a79fba;--ln:#352d46;--a:#ff7a9f;--b:#7a9bff;--ok:#4cc79c}
-*,*::before,*::after{box-sizing:inherit}
-html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:16px/1.5 "PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;padding-bottom:84px}
-#app{max-width:520px;margin:0 auto;padding:16px}
-h1{font-size:24px;font-weight:800;margin:4px 0 8px;letter-spacing:.02em}
-.mute{color:var(--mute);font-size:14px}
-.row{display:flex;gap:8px;align-items:center}.wrap{flex-wrap:wrap}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 12px 3px 8px;border-radius:999px;background:var(--sf);border:1px solid var(--ln);font-size:14px}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
-.sec{background:var(--sf);border:1px solid var(--ln);border-radius:20px;padding:14px;margin:12px 0}
-.sec h2{font-size:17px;margin:0 0 8px}
-input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--ln);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px}
-textarea{min-height:84px;resize:vertical}
-.btn{background:var(--ink);color:var(--bg);border:0;border-radius:999px;padding:10px 18px;font:inherit;font-weight:700;white-space:nowrap;cursor:pointer}
-.btn.full{width:100%;margin-top:8px}
-.ghost{background:transparent;border:1px solid var(--ln);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
-.ghost.on{background:var(--ink);color:var(--bg)}
-td,th{padding:5px 4px}
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-.cd{aspect-ratio:1;border:0;background:transparent;color:var(--ink);border-radius:12px;font:inherit;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:0}
-.cd.sel{background:var(--ink);color:var(--bg)}.cd.tod{box-shadow:inset 0 0 0 2px var(--a)}
-.dots{display:flex;gap:2px;height:6px}.dots .dot{width:6px;height:6px}
-.x{background:none;border:0;color:var(--mute);font-size:16px;padding:6px;cursor:pointer}
-button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--b);outline-offset:2px}
-.stat{background:var(--bg);border-radius:14px;padding:8px 10px}.stat b{display:block;font-size:17px}
-.tx{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--ln)}
-.bar{height:14px;border-radius:99px;background:var(--ln);overflow:hidden;display:flex;margin:10px 0 6px}.bar i{display:block;height:100%}
-.big{font-size:30px;line-height:1}
-.dn{justify-content:space-between;margin:4px 0 8px}.dt{font-weight:800;font-size:18px;text-align:center;flex:1}
-.who{display:flex;align-items:center;gap:8px;font-weight:800;margin-bottom:8px}
-.ro{padding:8px 0;white-space:pre-wrap}
-.tog{width:100%;margin-top:8px;padding:12px;border-radius:14px;border:2px dashed var(--ln);background:transparent;color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
-.tog.on{border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
-.okline{color:var(--ok);font-weight:700;margin-top:8px}
-#nav{position:fixed;left:0;right:0;bottom:0;background:var(--sf);border-top:1px solid var(--ln);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px)}
-#nav button{flex:1;max-width:173px;background:none;border:0;color:var(--mute);font:inherit;font-weight:700;padding:12px 0;cursor:pointer}
-#nav button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--a)}
-</style>
+<meta name="theme-color" content="#f6f3eb">
+<meta name="description" content="一起記下生活的收支、每天的小事，與想慢慢實現的願望。">
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<div id="cloud" style="max-width:520px;margin:auto;padding:16px 16px 0" aria-live="polite"></div>
+<div id="cloud" aria-live="polite"></div>
 <div id="app" hidden></div>
-<nav id="nav" hidden>
-<button data-tab="money">💰 記帳</button>
-<button data-tab="day">📅 每日</button>
-<button data-tab="wish">🎁 許願</button>
+<nav id="nav" aria-label="生活手帳導覽" hidden>
+<button data-tab="money" aria-label="💰 記帳"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4m8-4v4M4 10h16M8 14h3m-3 3h7"/></svg><span>記帳</span></button>
+<button data-tab="day" aria-label="📅 每日"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg><span>每日</span></button>
+<button data-tab="wish" aria-label="🎁 許願"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg><span>許願</span></button>
 </nav>
 <script type="module" src="/app.js"></script>
 </body>
