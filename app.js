@@ -13,11 +13,12 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const DCATS=[['餐飲','吃喝都在這'],['服飾','衣服 飾品 鞋子'],['日用品','日用品 家用品'],['交通','汽機車 各項交通'],['教育運動','運動 教育 學習'],['娛樂','純屬開心的開銷'],['醫療保健','醫療 成藥 保健品'],['交際送禮','交際 應酬 送禮'],['通訊訂閱','通訊 各種APP 訂閱'],['寵物','寵物相關開銷'],['公司代墊','公司先墊款，之後報銷'],['其他／待分類','']];
 const norm=d=>{
   const g=d.cfg||{},cats=g.cats||DCATS.map(([n,t])=>({n,t,b:'',life:n!=='公司代墊'}));
-  const o={members:d.members||{},tx:[],inc:d.inc||[],logs:d.logs||{},wishes:d.wishes||[],cfg:{cats,pays:g.pays||['現金','信用卡','LINE Pay','轉帳'],icats:g.icats||['薪資收入','費用撥款','副業收入','補助津貼','其他'],fixed:g.fixed||[]}};
+  const o={members:d.members||{},tx:[],inc:d.inc||[],ev:d.ev||[],logs:d.logs||{},wishes:d.wishes||[],cfg:{cats,pays:g.pays||['現金','信用卡','LINE Pay','轉帳'],icats:g.icats||['薪資收入','費用撥款','副業收入','補助津貼','其他'],fixed:g.fixed||[]}};
   (d.tx||[]).forEach(x=>{
     if(x.type==='in')o.inc.push({id:x.id,date:x.date,cat:'其他',note:x.note||'',amt:x.amt,who:x.who,nature:'一般收入'});
     else{const c=String(x.cat||'').replace(/^[^\u4e00-\u9fa5A-Za-z]+/,'');o.tx.push(Object.assign({kind:'life'},x,{cat:cats.some(k=>k.n===c)?c:'其他／待分類'}))}
   });
+  Object.entries(o.logs).forEach(([dt,v])=>Object.entries(v).forEach(([w,e])=>{if(e&&e.plan){const id='p-'+dt+'-'+w;if(!o.ev.some(x=>x.id===id))o.ev.push({id,date:dt,time:'',title:e.plan,who:w});delete e.plan}}));
   return o;
 };
 let S=norm({}),me=null,ref=null,tab='money',day=today(),ready=false,pending=false,saveT;
@@ -164,27 +165,35 @@ function streak(id){
   if(!on(d))d.setDate(d.getDate()-1);
   while(on(d)){n++;d.setDate(d.getDate()-1)}return n;
 }
+let calM=today().slice(0,7);
+const evOf=d=>S.ev.filter(e=>e.date===d).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 function dayView(){
-  const L=S.logs[day]||{};
-  const shift=n=>{const d=new Date(day+'T00:00:00');d.setDate(d.getDate()+n);day=fmt(d);render()};
+  const[y,m]=calM.split('-').map(Number),first=new Date(y,m-1,1).getDay(),dim=new Date(y,m,0).getDate();
+  const shiftC=n=>{const d=new Date(y,m-1+n,1);calM=d.getFullYear()+'-'+pad(d.getMonth()+1);render()};
+  const cells=[...Array(first)].map(()=>h('div'));
+  for(let d=1;d<=dim;d++){
+    const ds=calM+'-'+pad(d),who=[...new Set(S.ev.filter(e=>e.date===ds).map(e=>e.who))];
+    cells.push(h('button',{class:'cd'+(ds===day?' sel':'')+(ds===today()?' tod':''),'aria-label':m+'月'+d+'日',onclick:()=>{day=ds;render()}},String(d),h('span',{class:'dots'},who.map(w=>dotOf(w)))));
+  }
   const label=new Date(day+'T00:00:00').toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'});
-  const order=ids().includes(me)?[me,...ids().filter(i=>i!==me)]:ids();
-  const cards=order.map(id=>{
-    const e=L[id]||{},own=id===me&&canEdit();
-    return h('section',{class:'sec'},h('div',{class:'who'},dotOf(id),nm(id)+(id===me?'（我）':'')),
-      own?h('textarea',{placeholder:'今天的行程…',value:e.plan||'',onchange:ev=>setLog('plan',ev.target.value)}):h('div',{class:'ro'},e.plan||'還沒有紀錄'),
-      own?h('button',{class:'tog'+(e.supp?' on':''),onclick:()=>setLog('supp',!e.supp)},e.supp?'💊 今天已吃保健品 ✓':'💊 今天吃保健品了嗎？'):h('div',{class:e.supp?'okline':'mute'},e.supp?'💊 已吃保健品 ✓':'💊 還沒打卡'));
-  });
-  const m=ym(today());
-  const stats=ids().map(id=>{
-    const c=Object.entries(S.logs).filter(([d,v])=>ym(d)===m&&(v[id]||{}).supp).length;
+  const tm=h('input',{type:'time','aria-label':'時間',style:'width:125px'}),ti=h('input',{placeholder:'行程，例如：晚餐','aria-label':'行程',enterkeyhint:'done'});
+  const addE=()=>{if(!canEdit())return;const v=ti.value.trim();if(!v)return ti.focus();S.ev.push({id:uid(),date:day,time:tm.value,title:v,who:me});commit()};
+  ti.addEventListener('keydown',e=>{if(e.key==='Enter')addE()});
+  const evs=evOf(day).map(e=>h('div',{class:'tx'},dotOf(e.who),h('div',{style:'width:54px;font-weight:700'},e.time||'全天'),h('div',{style:'flex:1;min-width:0'},e.title),h('span',{class:'mute'},nm(e.who)),delBtn(()=>{S.ev=S.ev.filter(t=>t.id!==e.id)})));
+  const L=S.logs[day]||{},order=ids().includes(me)?[me,...ids().filter(i=>i!==me)]:ids();
+  const supp=order.map(id=>{const e=L[id]||{};return h('div',{class:'row',style:'margin:6px 0'},dotOf(id),h('span',{style:'flex:1'},nm(id)+(id===me?'（我）':'')),
+    id===me&&canEdit()?h('button',{class:'tog'+(e.supp?' on':''),style:'width:auto;margin:0;padding:8px 14px',onclick:()=>setLog('supp',!e.supp)},e.supp?'💊 已吃 ✓':'💊 吃了嗎？'):h('span',{class:e.supp?'okline':'mute',style:'margin:0'},e.supp?'💊 已吃 ✓':'還沒打卡'))});
+  const mm=ym(today()),stats=ids().map(id=>{
+    const c=Object.entries(S.logs).filter(([d,v])=>ym(d)===mm&&(v[id]||{}).supp).length;
     return h('div',{class:'stat'},h('div',{class:'row'},dotOf(id),nm(id)),h('b',{},'本月 '+c+' 天'),h('span',{class:'mute'},'連續 '+streak(id)+' 天'));
   });
   return h('div',{},
-    h('div',{class:'row dn'},h('button',{class:'ghost','aria-label':'前一天',onclick:()=>shift(-1)},'‹'),h('div',{class:'dt'},label),h('button',{class:'ghost','aria-label':'後一天',onclick:()=>shift(1)},'›')),
-    day!==today()&&h('div',{style:'text-align:center'},h('button',{class:'ghost',onclick:()=>{day=today();render()}},'回到今天')),
-    cards,
-    h('section',{class:'sec'},h('h2',{},'保健品打卡'),h('div',{class:'grid2'},stats)));
+    h('section',{class:'sec'},
+      h('div',{class:'row dn'},h('button',{class:'ghost','aria-label':'上個月',onclick:()=>shiftC(-1)},'‹'),h('div',{class:'dt'},y+'年'+m+'月'),h('button',{class:'ghost','aria-label':'下個月',onclick:()=>shiftC(1)},'›'),h('button',{class:'ghost',onclick:()=>{day=today();calM=day.slice(0,7);render()}},'今天')),
+      h('div',{class:'cal'},['日','一','二','三','四','五','六'].map(w=>h('div',{class:'mute',style:'text-align:center'},w)),cells)),
+    h('section',{class:'sec'},h('h2',{},label),h('div',{class:'row'},tm,ti,h('button',{class:'btn',onclick:addE},'加入')),
+      h('div',{style:'margin-top:6px'},evs.length?evs:h('div',{class:'mute'},'這天還沒有行程，輸入時間和內容就能加入（時間可以不填）。'))),
+    h('section',{class:'sec'},h('h2',{},'💊 保健品打卡'),supp,h('div',{class:'grid2'},stats)));
 }
 
 function wishView(){

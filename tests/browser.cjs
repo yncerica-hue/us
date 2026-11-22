@@ -20,7 +20,12 @@ await b.reload();await b.getByRole('button',{name:'支出',exact:true}).click();
 // Exercise original daily, wish, and income workflows through the cloud adapter.
 await a.getByRole('button',{name:'收入',exact:true}).click();await a.getByPlaceholder('金額',{exact:true}).fill('1000');await a.getByPlaceholder('收入來源／用途').fill('薪資');await a.getByRole('button',{name:'記一筆',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();
 await a.getByRole('button',{name:'總覽',exact:true}).click();await a.getByText('NT$ 880',{exact:true}).waitFor();
-await a.getByRole('button',{name:'📅 每日',exact:true}).click();await a.getByPlaceholder('今天的行程…').fill('一起散步');await a.getByRole('heading',{name:'💞 我們的小日子'}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByRole('button',{name:'💊 今天吃保健品了嗎？',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();
+await a.getByRole('button',{name:'📅 每日',exact:true}).click();
+await a.getByLabel('時間',{exact:true}).fill('18:30');await a.getByLabel('行程',{exact:true}).fill('一起散步');await a.getByRole('button',{name:'加入',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();
+assert(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+await b.getByRole('button',{name:'📅 每日',exact:true}).click();await b.getByText('一起散步',{exact:true}).waitFor({timeout:12000});await b.getByText('18:30',{exact:true}).waitFor();await b.getByRole('button',{name:'💰 記帳',exact:true}).click();await b.getByRole('button',{name:'支出',exact:true}).click();
+await a.getByRole('button',{name:'下個月',exact:true}).click();await a.getByRole('button',{name:'今天',exact:true}).click();await a.getByText('一起散步',{exact:true}).waitFor();
+await a.reload();await a.getByRole('button',{name:'📅 每日',exact:true}).click();await a.getByText('一起散步',{exact:true}).waitFor();await a.getByRole('button',{name:'💊 吃了嗎？',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();
 await a.getByRole('button',{name:'🎁 許願',exact:true}).click();await a.getByPlaceholder('想一起完成的事，例如：京都五日遊').fill('一起旅行');await a.getByPlaceholder('目標金額').fill('500');await a.getByRole('button',{name:'許下願望',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByPlaceholder('存入金額').fill('500');await a.getByRole('button',{name:'存進去',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByRole('button',{name:'🎉 我們實現了！',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByText('✅ 已經實現',{exact:true}).waitFor();
 // Inject a transport failure; the app must expose backup and never claim saved.
 await b.route('**/rest/v1/rpc/save_space',r=>r.fulfill({status:500,json:{message:'test network failure'}}));
@@ -28,5 +33,5 @@ await b.getByPlaceholder('金額',{exact:true}).fill('80');await b.getByPlacehol
 assert(await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 const c=await pageFor(2);await c.getByLabel('邀請碼（加入時填寫）').fill(code);await c.getByRole('button',{name:'加入空間',exact:true}).click();await c.getByText('邀請碼無效或空間已滿。',{exact:true}).waitFor();assert(await c.locator('#app').isHidden());
 assert.deepEqual(errors,[]);await a.screenshot({path:'/tmp/us-cloud-mobile.png',fullPage:true});
-console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, partner join, polling across two contexts, expense sync, reload persistence, income balance, daily log, check-in, wish completion, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
+console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, partner join, polling across two contexts, expense sync, reload persistence, income balance, calendar navigation, timed event sync and reload, check-in, wish completion, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
 await browser.close();await db.close();})().catch(e=>{console.error(e);process.exit(1)});
