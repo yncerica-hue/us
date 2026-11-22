@@ -166,20 +166,22 @@ function streak(id){
   while(on(d)){n++;d.setDate(d.getDate()-1)}return n;
 }
 let calM=today().slice(0,7);
+const eventPeople=e=>e.together?ids():[e.who];
 const evOf=d=>S.ev.filter(e=>e.date===d).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 function dayView(){
   const[y,m]=calM.split('-').map(Number),first=new Date(y,m-1,1).getDay(),dim=new Date(y,m,0).getDate();
   const shiftC=n=>{const d=new Date(y,m-1+n,1);calM=d.getFullYear()+'-'+pad(d.getMonth()+1);render()};
   const cells=[...Array(first)].map(()=>h('div'));
   for(let d=1;d<=dim;d++){
-    const ds=calM+'-'+pad(d),who=[...new Set(S.ev.filter(e=>e.date===ds).map(e=>e.who))];
+    const ds=calM+'-'+pad(d),who=[...new Set(S.ev.filter(e=>e.date===ds).flatMap(eventPeople))];
     cells.push(h('button',{class:'cd'+(ds===day?' sel':'')+(ds===today()?' tod':''),'aria-label':m+'月'+d+'日',onclick:()=>{day=ds;render()}},String(d),h('span',{class:'dots'},who.map(w=>dotOf(w)))));
   }
   const label=new Date(day+'T00:00:00').toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'});
   const tm=h('input',{type:'time','aria-label':'時間',style:'width:125px'}),ti=h('input',{placeholder:'行程，例如：晚餐','aria-label':'行程',enterkeyhint:'done'});
-  const addE=()=>{if(!canEdit())return;const v=ti.value.trim();if(!v)return ti.focus();S.ev.push({id:uid(),date:day,time:tm.value,title:v,who:me});commit()};
+  const together=h('input',{type:'checkbox','aria-label':'一起（兩人）',style:'width:auto;margin:0'});
+  const addE=()=>{if(!canEdit())return;const v=ti.value.trim();if(!v)return ti.focus();S.ev.push({id:uid(),date:day,time:tm.value,title:v,who:me,together:together.checked});commit()};
   ti.addEventListener('keydown',e=>{if(e.key==='Enter')addE()});
-  const evs=evOf(day).map(e=>h('div',{class:'tx'},dotOf(e.who),h('div',{style:'width:54px;font-weight:700'},e.time||'全天'),h('div',{style:'flex:1;min-width:0'},e.title),h('span',{class:'mute'},nm(e.who)),delBtn(()=>{S.ev=S.ev.filter(t=>t.id!==e.id)})));
+  const evs=evOf(day).map(e=>h('div',{class:'tx'},h('span',{class:'row',style:'gap:3px'},eventPeople(e).map(dotOf)),h('div',{style:'width:54px;font-weight:700'},e.time||'全天'),h('div',{style:'flex:1;min-width:0'},e.title),h('span',{class:'mute'},e.together?'一起':nm(e.who)),delBtn(()=>{S.ev=S.ev.filter(t=>t.id!==e.id)})));
   const L=S.logs[day]||{},order=ids().includes(me)?[me,...ids().filter(i=>i!==me)]:ids();
   const supp=order.map(id=>{const e=L[id]||{};return h('div',{class:'row',style:'margin:6px 0'},dotOf(id),h('span',{style:'flex:1'},nm(id)+(id===me?'（我）':'')),
     id===me&&canEdit()?h('button',{class:'tog'+(e.supp?' on':''),style:'width:auto;margin:0;padding:8px 14px',onclick:()=>setLog('supp',!e.supp)},e.supp?'💊 已吃 ✓':'💊 吃了嗎？'):h('span',{class:e.supp?'okline':'mute',style:'margin:0'},e.supp?'💊 已吃 ✓':'還沒打卡'))});
@@ -192,6 +194,7 @@ function dayView(){
       h('div',{class:'row dn'},h('button',{class:'ghost','aria-label':'上個月',onclick:()=>shiftC(-1)},'‹'),h('div',{class:'dt'},y+'年'+m+'月'),h('button',{class:'ghost','aria-label':'下個月',onclick:()=>shiftC(1)},'›'),h('button',{class:'ghost',onclick:()=>{day=today();calM=day.slice(0,7);render()}},'今天')),
       h('div',{class:'cal'},['日','一','二','三','四','五','六'].map(w=>h('div',{class:'mute',style:'text-align:center'},w)),cells)),
     h('section',{class:'sec'},h('h2',{},label),h('div',{class:'row'},tm,ti,h('button',{class:'btn',onclick:addE},'加入')),
+      h('label',{class:'row',style:'margin-top:10px'},together,'一起（兩人）',h('span',{class:'mute'},'未勾選為自己')),
       h('div',{style:'margin-top:6px'},evs.length?evs:h('div',{class:'mute'},'這天還沒有行程，輸入時間和內容就能加入（時間可以不填）。'))),
     h('section',{class:'sec'},h('h2',{},'💊 保健品打卡'),supp,h('div',{class:'grid2'},stats)));
 }
