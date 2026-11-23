@@ -60,10 +60,10 @@ export async function startCloud({onReady,onUpdate,idle}){
   clearInterval(timer);const data=await rpc('get_space',{});
   if(!data){room=null;roomScreen();return;}
   room=data.id;version=data.version;shell('我們的共用空間','connected');note.textContent='已載入雲端資料';
-  const invite=el('input',null,{value:data.invite_code,readOnly:true,'ariaLabel':'雙人邀請碼'});
-  root.append(el('p','邀請碼（只分享給另一半）：',{className:'mute'}),invite);accountBar();
+  accountBar();
   app.hidden=nav.hidden=false;
   onReady(user.id,{
+   inviteCode:data.invite_code,
    status(text){note.textContent=text;},
    async set(state){const result=await rpc('save_space',{space_id:room,expected_version:version,new_state:state});version=result.version;},
    async updateNickname(nickname){

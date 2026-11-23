@@ -149,7 +149,10 @@ function setV(){
   if(accountOpen)return accountV();
   const cn=h('input',{placeholder:'新增分類'}),fn=h('input',{placeholder:'名稱，例如：房租'}),fa=h('input',{type:'number',inputmode:'numeric',placeholder:'每月金額'});
   return h('div',{},
-    h('section',{class:'sec'},h('button',{class:'ghost full',onclick:()=>{accountOpen=true;render()}},'帳號管理')),
+    h('section',{class:'sec settings-account'},h('h2',{},'帳號與共用空間'),
+      h('button',{class:'ghost full',onclick:()=>{accountOpen=true;render()}},'帳號管理'),
+      h('label',{},'雙人邀請碼',h('input',{value:ref.inviteCode,readonly:true,autocomplete:'off','aria-label':'雙人邀請碼',onfocus:ev=>ev.target.select()})),
+      h('p',{class:'mute'},'只分享給另一半，用來加入你們的雙人空間。')),
     h('section',{class:'sec'},h('h2',{},'分類與月預算'),h('div',{class:'mute'},'預算留白代表未設預算，不當成 0 元。'),
       S.cfg.cats.map(k=>h('div',{class:'tx'},h('div',{style:'flex:1'},h('div',{},k.n),h('div',{class:'mute'},k.t||(k.life===false?'不算生活支出':''))),
         k.life===false?h('span',{class:'mute'},'不設預算'):h('input',{type:'number',inputmode:'numeric',placeholder:'月預算',value:k.b,style:'width:110px','aria-label':k.n+'月預算',onchange:ev=>{const t=S.cfg.cats.find(z=>z.n===k.n);if(t&&canEdit()){t.b=ev.target.value;save()}}}))),
