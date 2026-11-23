@@ -10,7 +10,7 @@ else if(u.pathname.includes('/rest/v1/rpc/'))body=await rpc(db,users[n],u.pathna
 else body={};
 }catch(e){status=400;body={code:'P0001',message:e.message};}
 await route.fulfill({status,json:body,headers:{'access-control-allow-origin':'*'}});}).catch(console.error);return queue;});
-await p.goto('http://localhost:4173');await p.getByLabel('Email',{exact:true}).fill(`user${n}@example.test`);await p.getByLabel('密碼（至少 8 個字元）').fill('test-password');await p.getByRole('button',{name:'登入',exact:true}).click();await p.getByLabel('你的暱稱').fill(n?'另一半':'小花');return p;}
+await p.goto(process.env.TEST_BASE_URL||'http://localhost:4173');await p.getByLabel('Email',{exact:true}).fill(`user${n}@example.test`);await p.getByLabel('密碼（至少 8 個字元）').fill('test-password');await p.getByRole('button',{name:'登入',exact:true}).click();await p.getByLabel('你的暱稱').fill(n?'另一半':'小花');return p;}
 const a=await pageFor(0);await a.getByRole('button',{name:'建立空間',exact:true}).click();await a.getByLabel('雙人邀請碼').waitFor();const code=await a.getByLabel('雙人邀請碼').inputValue();
 const b=await pageFor(1);await b.getByLabel('邀請碼（加入時填寫）').fill(code);await b.getByRole('button',{name:'加入空間',exact:true}).click();await b.getByText('另一半（我）',{exact:true}).waitFor();
 await a.getByRole('banner').getByText('另一半',{exact:true}).waitFor({timeout:12000});
@@ -41,11 +41,45 @@ assert.equal(await strength(a).getByRole('button',{pressed:true}).count(),1);ass
 await b.getByRole('button',{name:'📅 每日',exact:true}).click();await strength(b).getByText('🏋️ 已完成 ✓',{exact:true}).waitFor({timeout:12000});await cardio(b).getByText('🏃 已完成 ✓',{exact:true}).waitFor({timeout:12000});assert.equal(await strength(b).getByRole('button',{pressed:false}).count(),1);assert.equal(await cardio(b).getByRole('button',{pressed:false}).count(),1);
 assert(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await b.getByRole('button',{name:'💰 記帳',exact:true}).click();await b.getByRole('button',{name:'支出',exact:true}).click();
 await a.getByRole('button',{name:'🎁 許願',exact:true}).click();await a.getByPlaceholder('想一起完成的事，例如：京都五日遊').fill('一起旅行');await a.getByPlaceholder('目標金額').fill('500');await a.getByRole('button',{name:'許下願望',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByPlaceholder('存入金額').fill('500');await a.getByRole('button',{name:'存進去',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByRole('button',{name:'🎉 我們實現了！',exact:true}).click();await a.getByText('已儲存至雲端',{exact:true}).waitFor();await a.getByText('✅ 已經實現',{exact:true}).waitFor();
+// Reorder all wishes (including completed ones), edit total progress, and preserve deposits.
+const wish=(page,title)=>page.getByRole('region',{name:title,exact:true});
+const titles=()=>a.locator('.wish-card').evaluateAll(cards=>cards.map(card=>card.getAttribute('aria-label')));
+const travel=wish(a,'一起旅行');
+assert(await travel.getByRole('button',{name:'一起旅行上移',exact:true}).isDisabled());
+assert(await travel.getByRole('button',{name:'一起旅行下移',exact:true}).isDisabled());
+await travel.getByText('100%',{exact:true}).waitFor();
+for(const title of ['新家','紀念日']){
+ await a.getByPlaceholder('想一起完成的事，例如：京都五日遊').fill(title);await a.getByPlaceholder('目標金額').fill('1000');await a.getByRole('button',{name:'許下願望',exact:true}).click();await saved();
+}
+assert.deepEqual(await titles(),['一起旅行','新家','紀念日']);
+await wish(a,'紀念日').getByRole('button',{name:'紀念日上移',exact:true}).click();await saved();
+assert.deepEqual(await titles(),['一起旅行','紀念日','新家']);
+await travel.getByRole('button',{name:'一起旅行下移',exact:true}).click();await saved();
+assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
+assert(await wish(a,'紀念日').getByRole('button',{name:'紀念日上移',exact:true}).isDisabled());
+assert(await wish(a,'新家').getByRole('button',{name:'新家下移',exact:true}).isDisabled());
+await travel.getByLabel('一起旅行已達成進度',{exact:true}).fill('125');await travel.getByRole('button',{name:'更新進度',exact:true}).click();await saved();
+await travel.getByText('25%',{exact:true}).waitFor();assert.equal(await travel.getByText('✅ 已經實現',{exact:true}).count(),0);
+// A direct total correction must not rewrite either person's deposit history.
+await travel.getByText('小花 NT$ 500',{exact:true}).waitFor();
+await travel.getByPlaceholder('存入金額').fill('25');await travel.getByRole('button',{name:'存進去',exact:true}).click();await saved();await travel.getByText('30%',{exact:true}).waitFor();
+const home=wish(a,'新家');await home.getByLabel('新家進度輸入方式',{exact:true}).selectOption('percent');await home.getByLabel('新家已達成進度',{exact:true}).fill('42.5');await home.getByRole('button',{name:'更新進度',exact:true}).click();await saved();
+await home.getByText('42.5%',{exact:true}).waitFor();assert.equal(await home.getByLabel('新家已達成進度',{exact:true}).inputValue(),'425');
+for(const invalid of ['-1','']){await home.getByLabel('新家已達成進度',{exact:true}).fill(invalid);await home.getByRole('button',{name:'更新進度',exact:true}).click();await home.getByText('42.5%',{exact:true}).waitFor();}
+await home.getByLabel('新家已達成進度',{exact:true}).fill('0');await home.getByRole('button',{name:'更新進度',exact:true}).click();await saved();await home.getByText('0%',{exact:true}).waitFor();
+await home.getByLabel('新家進度輸入方式',{exact:true}).selectOption('percent');await home.getByLabel('新家已達成進度',{exact:true}).fill('125');await home.getByRole('button',{name:'更新進度',exact:true}).click();await saved();await home.getByText('125%',{exact:true}).waitFor();
+assert.equal(await home.getByRole('progressbar').getAttribute('aria-valuenow'),'100');
+await home.getByRole('button',{name:'🎉 我們實現了！',exact:true}).click();await saved();assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
+await a.reload();await a.getByRole('button',{name:'🎁 許願',exact:true}).click();assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);await travel.getByText('30%',{exact:true}).waitFor();await home.getByText('125%',{exact:true}).waitFor();
+assert(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+await a.setViewportSize({width:320,height:740});assert(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await a.setViewportSize({width:390,height:844});
+await b.getByRole('button',{name:'🎁 許願',exact:true}).click();await wish(b,'新家').getByText('125%',{exact:true}).waitFor({timeout:12000});assert.deepEqual(await b.locator('.wish-card').evaluateAll(cards=>cards.map(card=>card.getAttribute('aria-label'))),['紀念日','一起旅行','新家']);await wish(b,'一起旅行').getByText('30%',{exact:true}).waitFor();
+await b.getByRole('button',{name:'💰 記帳',exact:true}).click();await b.getByRole('button',{name:'支出',exact:true}).click();
 // Inject a transport failure; the app must expose backup and never claim saved.
 await b.route('**/rest/v1/rpc/save_space',r=>r.fulfill({status:500,json:{message:'test network failure'}}));
 await b.getByPlaceholder('金額',{exact:true}).fill('80');await b.getByPlaceholder('買了什麼／用途').fill('未儲存測試');await b.getByRole('button',{name:'記一筆',exact:true}).click();await b.getByRole('link',{name:'下載未儲存的資料',exact:true}).waitFor({timeout:15000});await b.getByText('尚未儲存，請先下載備份並重新載入',{exact:true}).waitFor();
 assert(await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 const c=await pageFor(2);await c.getByLabel('邀請碼（加入時填寫）').fill(code);await c.getByRole('button',{name:'加入空間',exact:true}).click();await c.getByText('邀請碼無效或空間已滿。',{exact:true}).waitFor();assert(await c.locator('#app').isHidden());
 assert.deepEqual(errors,[]);await a.screenshot({path:'/tmp/us-cloud-mobile.png',fullPage:true});
-console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, partner join, polling across two contexts, expense sync, reload persistence, income balance, calendar navigation, own/together event labels and calendar dots, timed event sync and reload, independent strength/cardio check-ins, undo, counts, partner sync and reload, wish completion, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
+console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, partner join, polling across two contexts, expense sync, reload persistence, income balance, calendar navigation, own/together event labels and calendar dots, timed event sync and reload, independent strength/cardio check-ins, undo, counts, partner sync and reload, wish completion, persisted wish ordering and total/percent updates, deposit preservation, zero/invalid/over-target progress, partner sync, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
 await browser.close();await db.close();})().catch(e=>{console.error(e);process.exit(1)});

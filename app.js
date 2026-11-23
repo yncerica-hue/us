@@ -206,24 +206,45 @@ function dayView(){
 
 function wishView(){
   const t=h('input',{placeholder:'想一起完成的事，例如：京都五日遊'});
-  const g=h('input',{type:'number',inputmode:'numeric',placeholder:'目標金額'});
+  const g=h('input',{type:'number',inputmode:'decimal',min:'0.01',step:'any',placeholder:'目標金額'});
   const e=h('select',{style:'width:80px'},['🍽️','✈️','🎁','🏠','🎬','💍'].map(x=>h('option',{},x)));
   const add=h('button',{class:'btn full',onclick:()=>{
     if(!canEdit())return;const v=t.value.trim(),a=parseFloat(g.value);
-    if(!v)return t.focus();if(!(a>0))return g.focus();
+    if(!v)return t.focus();if(!Number.isFinite(a)||!(a>0))return g.focus();
     S.wishes.push({id:uid(),title:v,target:a,emoji:e.value,c:[],done:false});commit()}},'許下願望');
-  const cards=S.wishes.slice().sort((a,b)=>(a.done?1:0)-(b.done?1:0)).map(w=>{
-    const c=w.c||[],saved=sum(c),left=Math.max(0,w.target-saved);
-    const inp=h('input',{type:'number',inputmode:'numeric',placeholder:'存入金額'});
+  const cards=S.wishes.map((w,index)=>{
+    const c=w.c||[],saved=Math.max(0,sum(c)+(Number(w.adjustment)||0)),left=Math.max(0,w.target-saved);
+    const percent=w.target>0?saved/w.target*100:0;
+    const percentText=Number(percent.toFixed(1))+'%';
+    const inp=h('input',{type:'number',inputmode:'decimal',min:'0.01',step:'any',placeholder:'存入金額'});
     const upd=fn=>{const x=S.wishes.find(i=>i.id===w.id);if(x&&canEdit()){fn(x);commit()}};
-    return h('section',{class:'sec'},
+    const move=direction=>{
+      if(!canEdit())return;
+      const from=S.wishes.findIndex(x=>x.id===w.id),to=from+direction;
+      if(from<0||to<0||to>=S.wishes.length)return;
+      [S.wishes[from],S.wishes[to]]=[S.wishes[to],S.wishes[from]];commit();
+    };
+    const mode=h('select',{'aria-label':w.title+'進度輸入方式'},h('option',{value:'amount'},'累計金額'),h('option',{value:'percent'},'達成百分比'));
+    const progress=h('input',{type:'number',inputmode:'decimal',min:'0',step:'any',value:saved,'aria-label':w.title+'已達成進度'});
+    mode.addEventListener('change',()=>{progress.value=mode.value==='percent'?Number(percent.toFixed(4)):saved;});
+    const updateProgress=()=>{
+      if(!progress.reportValidity()||progress.value==='')return progress.focus();
+      const value=Number(progress.value),amount=mode.value==='percent'?w.target*value/100:value;
+      if(!Number.isFinite(amount)||amount<0)return progress.focus();
+      upd(x=>{x.adjustment=amount-sum(x.c||[]);if(amount<x.target)x.done=false;});
+    };
+    progress.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();updateProgress();}});
+    return h('section',{class:'sec wish-card','aria-label':w.title},
       h('div',{class:'row'},h('div',{class:'big'},w.emoji),
         h('div',{style:'flex:1;min-width:0'},h('b',{},w.title),h('div',{class:'mute'},money(saved)+' / '+money(w.target)+(w.done?'':saved>=w.target?'，存夠了！':'，還差 '+money(left)))),
         h('button',{class:'x','aria-label':'刪除願望',onclick:()=>{if(canEdit()){S.wishes=S.wishes.filter(i=>i.id!==w.id);commit()}}},'✕')),
-      h('div',{class:'bar'},ids().map(id=>h('i',{style:'width:'+Math.min(100,sum(c.filter(x=>x.who===id))/w.target*100)+'%;background:'+col(id)}))),
-      h('div',{class:'row wrap mute'},ids().map(id=>h('span',{class:'pill'},dotOf(id),nm(id)+' '+money(sum(c.filter(x=>x.who===id)))))),
+      h('div',{class:'row wrap wish-order'},h('button',{class:'ghost',disabled:!canEdit()||index===0,'aria-label':w.title+'上移',onclick:()=>move(-1)},'上移'),h('button',{class:'ghost',disabled:!canEdit()||index===S.wishes.length-1,'aria-label':w.title+'下移',onclick:()=>move(1)},'下移')),
+      h('div',{class:'row wish-progress'},h('span',{},'達成進度'),h('b',{},percentText)),
+      h('div',{class:'bar',role:'progressbar','aria-label':w.title+'達成進度','aria-valuemin':'0','aria-valuemax':'100','aria-valuenow':Math.min(100,percent),'aria-valuetext':percentText},h('i',{style:'width:'+Math.min(100,percent)+'%;background:var(--ok)'})),
+      h('div',{class:'row wrap mute'},h('span',{},'累計存入'),ids().map(id=>h('span',{class:'pill'},dotOf(id),nm(id)+' '+money(sum(c.filter(x=>x.who===id)))))),
+      h('form',{class:'wish-update',onsubmit:ev=>{ev.preventDefault();updateProgress();}},h('div',{class:'wish-update-label'},'更新已達成進度'),h('div',{class:'row'},mode,progress),h('button',{class:'ghost full',type:'submit',disabled:!canEdit()},'更新進度')),
       w.done?h('div',{class:'okline'},'✅ 已經實現'):[
-        h('div',{class:'row',style:'margin-top:10px'},inp,h('button',{class:'btn',onclick:()=>{const a=parseFloat(inp.value);if(!(a>0))return inp.focus();upd(x=>{(x.c=x.c||[]).push({who:me,amt:a,date:today()})})}},'存進去')),
+        h('div',{class:'row',style:'margin-top:10px'},inp,h('button',{class:'btn',onclick:()=>{const a=parseFloat(inp.value);if(!Number.isFinite(a)||!(a>0))return inp.focus();upd(x=>{(x.c=x.c||[]).push({who:me,amt:a,date:today()})})}},'存進去')),
         saved>=w.target&&h('button',{class:'btn full',style:'background:var(--ok)',onclick:()=>upd(x=>{x.done=true})},'🎉 我們實現了！')]);
   });
   return h('div',{},
