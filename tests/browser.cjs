@@ -3,7 +3,7 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 (async()=>{const db=await setup();for(const u of users)await db.query('insert into auth.users values ($1)',[u]);
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});let queue=Promise.resolve();const errors=[];const passwords=users.map(()=>"test-password");let passwordUpdates=0;
-async function pageFor(n){const ctx=await browser.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
+async function pageFor(n){const ctx=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
 await p.route('https://*.supabase.co/**',route=>{queue=queue.then(async()=>{const req=route.request(),u=new URL(req.url());let body,status=200;try{
 if(u.pathname.includes('/auth/v1/token')){if(req.postDataJSON().password!==passwords[n])throw Error('Invalid login credentials');const id=users[n],token=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')+'.'+Buffer.from(JSON.stringify({sub:id,exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.test';body={access_token:token,token_type:'bearer',expires_in:3600,refresh_token:'refresh-test',user:{id,email:`user${n}@example.test`,aud:'authenticated',role:'authenticated'}};}
 else if(u.pathname==='/auth/v1/user'){if(req.method()==='PUT'){passwords[n]=req.postDataJSON().password;passwordUpdates++;}body={id:users[n],email:`user${n}@example.test`,aud:'authenticated',role:'authenticated'};}
@@ -47,19 +47,41 @@ await a.getByRole('button',{name:'🎁 許願',exact:true}).click();await a.getB
 const wish=(page,title)=>page.getByRole('region',{name:title,exact:true});
 const titles=()=>a.locator('.wish-card').evaluateAll(cards=>cards.map(card=>card.getAttribute('aria-label')));
 const travel=wish(a,'一起旅行');
-assert(await travel.getByRole('button',{name:'一起旅行上移',exact:true}).isDisabled());
-assert(await travel.getByRole('button',{name:'一起旅行下移',exact:true}).isDisabled());
+assert.equal(await a.getByRole('button',{name:/上移|下移/}).count(),0);
+await travel.locator('.wish-drag-title').press('Alt+ArrowUp');assert.deepEqual(await titles(),['一起旅行']);
 await travel.getByText('100%',{exact:true}).waitFor();
 for(const title of ['新家','紀念日']){
  await a.getByPlaceholder('想一起完成的事，例如：京都五日遊').fill(title);await a.getByPlaceholder('目標金額').fill('1000');await a.getByRole('button',{name:'許下願望',exact:true}).click();await saved();
 }
 assert.deepEqual(await titles(),['一起旅行','新家','紀念日']);
-await wish(a,'紀念日').getByRole('button',{name:'紀念日上移',exact:true}).click();await saved();
-assert.deepEqual(await titles(),['一起旅行','紀念日','新家']);
-await travel.getByRole('button',{name:'一起旅行下移',exact:true}).click();await saved();
-assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
-assert(await wish(a,'紀念日').getByRole('button',{name:'紀念日上移',exact:true}).isDisabled());
-assert(await wish(a,'新家').getByRole('button',{name:'新家下移',exact:true}).isDisabled());
+// A quick pointer movement must not begin sorting.
+const title=wish(a,'紀念日').locator('.wish-drag-title');await title.scrollIntoViewIfNeeded();const box=await title.boundingBox();await a.mouse.move(box.x+20,box.y+10);await a.mouse.down();await a.mouse.move(box.x+20,box.y-30,{steps:3});await a.mouse.up();assert.deepEqual(await titles(),['一起旅行','新家','紀念日']);
+// A real touch swipe before the hold delay scrolls normally without reordering.
+const swipe=await a.context().newCDPSession(a);await title.scrollIntoViewIfNeeded();const swipeBox=await title.boundingBox(),scrollBefore=await a.evaluate(()=>scrollY);
+await swipe.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:swipeBox.x+40,y:swipeBox.y+10}]});await swipe.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:swipeBox.x+40,y:swipeBox.y-140}]});await swipe.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await a.waitForFunction(before=>scrollY>before,scrollBefore);await swipe.detach();assert.deepEqual(await titles(),['一起旅行','新家','紀念日']);
+async function dragWish(from,to,touch,cancel=false){
+ const handle=wish(a,from).locator('.wish-drag-title');await handle.scrollIntoViewIfNeeded();
+ const box=await handle.boundingBox(),x=box.x+40,y=box.y+10;
+ const targetIndex=(await titles()).indexOf(to),sourceIndex=(await titles()).indexOf(from);
+ const session=touch?await a.context().newCDPSession(a):null;
+ const move=async(destY)=>touch?session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:destY}]}):a.mouse.move(x,destY,{steps:8});
+ if(touch)await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});else{await a.mouse.move(x,y);await a.mouse.down();}
+ // Intentional hold to exercise the long-press gesture itself.
+ await a.waitForTimeout(450);await move(y+(targetIndex<sourceIndex?-15:15));
+ await a.locator('.wish-list>.wish-chosen').waitFor();
+ await move(targetIndex<sourceIndex?15:834);
+ await a.waitForFunction(({from,index})=>[...document.querySelectorAll('.wish-list>.wish-card')].findIndex(card=>card.getAttribute('aria-label')===from)===index,{from,index:targetIndex},{timeout:6000});
+ if(touch){await session.send('Input.dispatchTouchEvent',{type:cancel?'touchCancel':'touchEnd',touchPoints:[]});await session.detach();}else await a.mouse.up();
+ if(cancel)await a.locator('.wish-list>.wish-chosen').waitFor({state:'detached'});else await saved();
+}
+await dragWish('紀念日','新家',true,true);assert.deepEqual(await titles(),['一起旅行','新家','紀念日']);
+await dragWish('紀念日','新家',true);assert.deepEqual(await titles(),['一起旅行','紀念日','新家']);
+await dragWish('一起旅行','紀念日',false);assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
+// Keyboard sorting remains available without visible up/down buttons.
+await wish(a,'紀念日').locator('.wish-drag-title').press('Alt+ArrowUp');assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
+await wish(a,'新家').locator('.wish-drag-title').press('Alt+ArrowDown');assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
+await wish(a,'新家').locator('.wish-drag-title').press('Alt+ArrowUp');await saved();assert.deepEqual(await titles(),['紀念日','新家','一起旅行']);
+await wish(a,'新家').locator('.wish-drag-title').press('Alt+ArrowDown');await saved();assert.deepEqual(await titles(),['紀念日','一起旅行','新家']);
 await travel.getByLabel('一起旅行已達成進度',{exact:true}).fill('125');await travel.getByRole('button',{name:'更新進度',exact:true}).click();await saved();
 await travel.getByText('25%',{exact:true}).waitFor();assert.equal(await travel.getByText('✅ 已經實現',{exact:true}).count(),0);
 // A direct total correction must not rewrite either person's deposit history.
@@ -101,5 +123,5 @@ await b.getByPlaceholder('金額',{exact:true}).fill('80');await b.getByPlacehol
 assert(await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 const c=await pageFor(2);await c.getByLabel('邀請碼（加入時填寫）').fill(code);await c.getByRole('button',{name:'加入空間',exact:true}).click();await c.getByText('邀請碼無效或空間已滿。',{exact:true}).waitFor();assert(await c.locator('#app').isHidden());
 assert.deepEqual(errors,[]);await a.screenshot({path:'/tmp/us-cloud-mobile.png',fullPage:true});
-console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, invite code only in settings, partner join, polling across two contexts, expense sync, reload persistence, income balance, calendar navigation, own/together event labels and calendar dots, timed event sync and reload, independent strength/cardio check-ins, undo, counts, partner sync and reload, wish completion, persisted wish ordering and total/percent updates, deposit preservation, zero/invalid/over-target progress, partner sync, account settings, nickname isolation and persistence, password validation and API errors, login with updated password, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
+console.log('PASS browser with mocked Auth and PostgreSQL-backed RPCs: login, create, invite code only in settings, partner join, polling across two contexts, expense sync, reload persistence, income balance, calendar navigation, own/together event labels and calendar dots, timed event sync and reload, independent strength/cardio check-ins, undo, counts, partner sync and reload, wish completion, touch and mouse long-press sorting with auto-scroll, normal touch scrolling, cancelled drag rollback, keyboard sorting, persisted wish ordering and total/percent updates, deposit preservation, zero/invalid/over-target progress, partner sync, account settings, nickname isolation and persistence, password validation and API errors, login with updated password, rejected third member, visible save failure + backup, no horizontal overflow, no JS errors');
 await browser.close();await db.close();})().catch(e=>{console.error(e);process.exit(1)});

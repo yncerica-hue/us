@@ -1,4 +1,5 @@
 import { startCloud } from './cloud.js';
+import Sortable from 'sortablejs';
 
 const $=s=>document.querySelector(s);
 function h(t,a,...c){const e=document.createElement(t);for(const k in a||{}){const v=a[k];if(k==='class')e.className=v;else if(k==='style')e.style.cssText=v;else if(k==='value'||k==='checked')e[k]=v;else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),v);else if(v!=null&&v!==false)e.setAttribute(k,v)}for(const x of c.flat(9))if(x!=null&&x!==false)e.append(x.nodeType?x:document.createTextNode(x));return e}
@@ -25,10 +26,10 @@ let S=norm({}),me=null,ref=null,tab='money',day=today(),ready=false,pending=fals
 const ids=()=>Object.keys(S.members);
 const nm=id=>S.members[id]||'對方';
 const col=id=>ids().indexOf(id)===1?'var(--b)':'var(--a)';
-const canEdit=()=>ready&&!saving&&!unsaved&&!accountBusy&&!!S.members[me];
+const canEdit=()=>ready&&!saving&&!unsaved&&!accountBusy&&!wishSorting&&!!S.members[me];
 const dotOf=id=>h('i',{class:'dot',style:'background:'+col(id)});
 
-let saving=false,unsaved=false,accountBusy=false,accountOpen=false;
+let saving=false,unsaved=false,accountBusy=false,accountOpen=false,wishSorting=false,wishSortable=null;
 async function save(){
   if(!ref||saving||unsaved)return;
   saving=true;ref.status('儲存中…');
@@ -37,13 +38,13 @@ async function save(){
   finally{saving=false;render();}
 }
 function commit(){save();render()}
-window.addEventListener('beforeunload',e=>{if(saving||unsaved||accountBusy){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(saving||unsaved||accountBusy||wishSorting){e.preventDefault();e.returnValue='';}});
 function typing(){return /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')}
 function incoming(){
   if(accountOpen&&tab==='money'&&sub==='set'){pending=false;document.querySelector('.journal-header')?.replaceWith(header());return;}
   if(typing())pending=true;else render();
 }
-document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()){pending=false;render()}},120));
+document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()&&!wishSorting){pending=false;render()}},120));
 
 function header(){
   const names=ids().map(id=>h('span',{class:'pill'},dotOf(id),nm(id)+(id===me?'（我）':'')));
@@ -252,17 +253,19 @@ function wishView(){
     if(!canEdit())return;const v=t.value.trim(),a=parseFloat(g.value);
     if(!v)return t.focus();if(!Number.isFinite(a)||!(a>0))return g.focus();
     S.wishes.push({id:uid(),title:v,target:a,emoji:e.value,c:[],done:false});commit()}},'許下願望');
-  const cards=S.wishes.map((w,index)=>{
+  const cards=S.wishes.map(w=>{
     const c=w.c||[],saved=Math.max(0,sum(c)+(Number(w.adjustment)||0)),left=Math.max(0,w.target-saved);
     const percent=w.target>0?saved/w.target*100:0;
     const percentText=Number(percent.toFixed(1))+'%';
     const inp=h('input',{type:'number',inputmode:'decimal',min:'0.01',step:'any',placeholder:'存入金額'});
     const upd=fn=>{const x=S.wishes.find(i=>i.id===w.id);if(x&&canEdit()){fn(x);commit()}};
-    const move=direction=>{
-      if(!canEdit())return;
-      const from=S.wishes.findIndex(x=>x.id===w.id),to=from+direction;
+    const keyboardMove=ev=>{
+      if(!ev.altKey||!['ArrowUp','ArrowDown'].includes(ev.key))return;
+      ev.preventDefault();if(!canEdit())return;
+      const from=S.wishes.findIndex(x=>x.id===w.id),to=from+(ev.key==='ArrowUp'?-1:1);
       if(from<0||to<0||to>=S.wishes.length)return;
       [S.wishes[from],S.wishes[to]]=[S.wishes[to],S.wishes[from]];commit();
+      document.querySelector('[data-id="'+w.id+'"] .wish-drag-title')?.focus();
     };
     const mode=h('select',{'aria-label':w.title+'進度輸入方式'},h('option',{value:'amount'},'累計金額'),h('option',{value:'percent'},'達成百分比'));
     const progress=h('input',{type:'number',inputmode:'decimal',min:'0',step:'any',value:saved,'aria-label':w.title+'已達成進度'});
@@ -274,11 +277,10 @@ function wishView(){
       upd(x=>{x.adjustment=amount-sum(x.c||[]);if(amount<x.target)x.done=false;});
     };
     progress.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();updateProgress();}});
-    return h('section',{class:'sec wish-card','aria-label':w.title},
+    return h('section',{class:'sec wish-card','data-id':w.id,'aria-label':w.title,oncontextmenu:ev=>{if(!ev.target.closest('input,select,textarea,button,form,label,a'))ev.preventDefault();}},
       h('div',{class:'row'},h('div',{class:'big'},w.emoji),
-        h('div',{style:'flex:1;min-width:0'},h('b',{},w.title),h('div',{class:'mute'},money(saved)+' / '+money(w.target)+(w.done?'':saved>=w.target?'，存夠了！':'，還差 '+money(left)))),
+        h('div',{style:'flex:1;min-width:0'},h('b',{class:'wish-drag-title',tabindex:canEdit()?'0':'-1',role:'group','aria-label':w.title+'，長按拖曳排序；鍵盤可按 Alt 加上下方向鍵','aria-keyshortcuts':'Alt+ArrowUp Alt+ArrowDown',onkeydown:keyboardMove},h('span',{class:'wish-grip','aria-hidden':'true'},'⠿'),w.title),h('div',{class:'mute'},money(saved)+' / '+money(w.target)+(w.done?'':saved>=w.target?'，存夠了！':'，還差 '+money(left)))),
         h('button',{class:'x','aria-label':'刪除願望',onclick:()=>{if(canEdit()){S.wishes=S.wishes.filter(i=>i.id!==w.id);commit()}}},'✕')),
-      h('div',{class:'row wrap wish-order'},h('button',{class:'ghost',disabled:!canEdit()||index===0,'aria-label':w.title+'上移',onclick:()=>move(-1)},'上移'),h('button',{class:'ghost',disabled:!canEdit()||index===S.wishes.length-1,'aria-label':w.title+'下移',onclick:()=>move(1)},'下移')),
       h('div',{class:'row wish-progress'},h('span',{},'達成進度'),h('b',{},percentText)),
       h('div',{class:'bar',role:'progressbar','aria-label':w.title+'達成進度','aria-valuemin':'0','aria-valuemax':'100','aria-valuenow':Math.min(100,percent),'aria-valuetext':percentText},h('i',{style:'width:'+Math.min(100,percent)+'%;background:var(--ok)'})),
       h('div',{class:'row wrap mute'},h('span',{},'累計存入'),ids().map(id=>h('span',{class:'pill'},dotOf(id),nm(id)+' '+money(sum(c.filter(x=>x.who===id)))))),
@@ -287,12 +289,34 @@ function wishView(){
         h('div',{class:'row',style:'margin-top:10px'},inp,h('button',{class:'btn',onclick:()=>{const a=parseFloat(inp.value);if(!Number.isFinite(a)||!(a>0))return inp.focus();upd(x=>{(x.c=x.c||[]).push({who:me,amt:a,date:today()})})}},'存進去')),
         saved>=w.target&&h('button',{class:'btn full',style:'background:var(--ok)',onclick:()=>upd(x=>{x.done=true})},'🎉 我們實現了！')]);
   });
+  const list=h('div',{class:'wish-list'},cards);
+  let cancelled=false;
+  ['touchcancel','pointercancel'].forEach(name=>list.addEventListener(name,()=>{cancelled=true;},true));
+  wishSortable=new Sortable(list,{
+    draggable:'.wish-card',filter:'input,select,textarea,button,form,label,a',preventOnFilter:false,
+    delay:350,delayOnTouchOnly:false,touchStartThreshold:8,forceFallback:true,fallbackOnBody:true,
+    animation:180,scrollSensitivity:70,scrollSpeed:12,disabled:!canEdit()||cards.length<2,
+    chosenClass:'wish-chosen',ghostClass:'wish-placeholder',fallbackClass:'wish-floating',
+    onChoose(){cancelled=false;wishSorting=true;},
+    onUnchoose(){wishSorting=false;},
+    onEnd(){
+      wishSorting=false;
+      if(cancelled||!canEdit()){queueMicrotask(render);return;}
+      const order=[...list.children].map(card=>card.dataset.id);
+      if(order.every((id,i)=>id===S.wishes[i]?.id))return;
+      const wishes=new Map(S.wishes.map(w=>[w.id,w]));
+      if(order.length!==wishes.size||order.some(id=>!wishes.has(id))){queueMicrotask(render);return;}
+      S.wishes=order.map(id=>wishes.get(id));queueMicrotask(commit);
+    }
+  });
   return h('div',{},
     h('section',{class:'sec'},h('h2',{},'許個願'),h('div',{class:'row'},e,t),h('div',{style:'margin-top:8px'},g),add),
-    cards.length?cards:h('div',{class:'mute'},'還沒有願望，先許一個吧。'));
+    cards.length>1&&h('p',{class:'mute wish-sort-hint'},'長按卡片，拖曳調整順序'),
+    cards.length?list:h('div',{class:'mute'},'還沒有願望，先許一個吧。'));
 }
 
 function render(){
+  wishSortable?.destroy();wishSortable=null;wishSorting=false;
   const app=$('#app');app.replaceChildren(header());
   if(!ready)return;
   app.append(tab==='money'?moneyView():tab==='day'?dayView():wishView());
@@ -304,7 +328,7 @@ async function init(){
   await startCloud({
     onReady(user,adapter,data){me=user;ref=adapter;S=norm(data);ready=true;unsaved=false;render();},
     onUpdate(data){S=norm(data);incoming();},
-    idle(){return ready&&!saving&&!unsaved&&!accountBusy&&!typing();}
+    idle(){return ready&&!saving&&!unsaved&&!accountBusy&&!wishSorting&&!typing();}
   });
 }
 init();
