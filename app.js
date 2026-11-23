@@ -25,10 +25,10 @@ let S=norm({}),me=null,ref=null,tab='money',day=today(),ready=false,pending=fals
 const ids=()=>Object.keys(S.members);
 const nm=id=>S.members[id]||'對方';
 const col=id=>ids().indexOf(id)===1?'var(--b)':'var(--a)';
-const canEdit=()=>ready&&!saving&&!unsaved&&!!S.members[me];
+const canEdit=()=>ready&&!saving&&!unsaved&&!accountBusy&&!!S.members[me];
 const dotOf=id=>h('i',{class:'dot',style:'background:'+col(id)});
 
-let saving=false,unsaved=false;
+let saving=false,unsaved=false,accountBusy=false,accountOpen=false;
 async function save(){
   if(!ref||saving||unsaved)return;
   saving=true;ref.status('儲存中…');
@@ -37,9 +37,12 @@ async function save(){
   finally{saving=false;render();}
 }
 function commit(){save();render()}
-window.addEventListener('beforeunload',e=>{if(saving||unsaved){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(saving||unsaved||accountBusy){e.preventDefault();e.returnValue='';}});
 function typing(){return /INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'')}
-function incoming(){if(typing())pending=true;else render()}
+function incoming(){
+  if(accountOpen&&tab==='money'&&sub==='set'){pending=false;document.querySelector('.journal-header')?.replaceWith(header());return;}
+  if(typing())pending=true;else render();
+}
 document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()){pending=false;render()}},120));
 
 function header(){
@@ -143,8 +146,10 @@ function chipEd(title,key){
     h('div',{class:'row',style:'margin-top:8px'},inp,h('button',{class:'btn',onclick:()=>{const v=inp.value.trim();if(v&&canEdit()&&!S.cfg[key].includes(v)){S.cfg[key].push(v);commit()}}},'新增')));
 }
 function setV(){
+  if(accountOpen)return accountV();
   const cn=h('input',{placeholder:'新增分類'}),fn=h('input',{placeholder:'名稱，例如：房租'}),fa=h('input',{type:'number',inputmode:'numeric',placeholder:'每月金額'});
   return h('div',{},
+    h('section',{class:'sec'},h('button',{class:'ghost full',onclick:()=>{accountOpen=true;render()}},'帳號管理')),
     h('section',{class:'sec'},h('h2',{},'分類與月預算'),h('div',{class:'mute'},'預算留白代表未設預算，不當成 0 元。'),
       S.cfg.cats.map(k=>h('div',{class:'tx'},h('div',{style:'flex:1'},h('div',{},k.n),h('div',{class:'mute'},k.t||(k.life===false?'不算生活支出':''))),
         k.life===false?h('span',{class:'mute'},'不設預算'):h('input',{type:'number',inputmode:'numeric',placeholder:'月預算',value:k.b,style:'width:110px','aria-label':k.n+'月預算',onchange:ev=>{const t=S.cfg.cats.find(z=>z.n===k.n);if(t&&canEdit()){t.b=ev.target.value;save()}}}))),
@@ -154,6 +159,38 @@ function setV(){
       S.cfg.fixed.map(f=>h('div',{class:'tx'},h('div',{style:'flex:1'},f.n),h('b',{},money(f.amt)),h('button',{class:'ghost',onclick:()=>edit(S.cfg.fixed,f.id,t=>{t.on=!t.on})},f.on?'啟用':'停用'),delBtn(()=>{S.cfg.fixed=S.cfg.fixed.filter(t=>t.id!==f.id)}))),
       h('div',{class:'grid2',style:'margin-top:8px'},fn,fa),
       h('button',{class:'btn full',onclick:()=>{const a=parseFloat(fa.value);if(!canEdit())return;if(!fn.value.trim())return fn.focus();if(!(a>0))return fa.focus();S.cfg.fixed.push({id:uid(),n:fn.value.trim(),amt:a,who:me,on:true});commit()}},'新增固定支出')));
+}
+
+function accountV(){
+  const nickname=h('input',{value:nm(me),required:true,maxlength:'30',autocomplete:'nickname','aria-label':'新的暱稱'});
+  const password=h('input',{type:'password',required:true,minlength:'8',autocomplete:'new-password','aria-label':'新密碼（至少 8 個字元）'});
+  const confirmPassword=h('input',{type:'password',required:true,minlength:'8',autocomplete:'new-password','aria-label':'再次輸入新密碼'});
+  const message=h('p',{class:'mute',role:'status','aria-live':'polite'});
+  const controls=[];
+  const perform=async(fn,success)=>{
+    if(!canEdit())return;
+    accountBusy=true;const navigation=[...document.querySelectorAll('#nav button,.subnav button')];
+    [...controls,...navigation].forEach(c=>c.disabled=true);message.textContent='儲存中…';
+    try{await fn();message.textContent=success;}
+    catch(e){message.textContent=e.message||'更新失敗，請稍後再試。';}
+    finally{accountBusy=false;controls.forEach(c=>c.disabled=!canEdit());navigation.forEach(c=>c.disabled=false);}
+  };
+  const nickForm=h('form',{onsubmit:async ev=>{
+    ev.preventDefault();const value=nickname.value.trim();
+    if(!value){nickname.setCustomValidity('請輸入暱稱。');nickname.reportValidity();return;}
+    await perform(async()=>{const data=await ref.updateNickname(value);S=norm(data);document.querySelector('.journal-header').replaceWith(header());},'暱稱已更新。');
+  }},h('h2',{},'修改暱稱'),h('label',{},'新的暱稱',nickname),h('button',{class:'btn full',type:'submit'},'儲存暱稱'));
+  nickname.addEventListener('input',()=>nickname.setCustomValidity(''));
+  const passwordForm=h('form',{onsubmit:async ev=>{
+    ev.preventDefault();confirmPassword.setCustomValidity(password.value===confirmPassword.value?'':'兩次輸入的密碼不一致。');
+    if(!passwordForm.reportValidity())return;
+    await perform(async()=>{await ref.updatePassword(password.value);password.value='';confirmPassword.value='';},'密碼已更新，下次請使用新密碼登入。');
+  }},h('h2',{},'修改登入密碼'),h('label',{},'新密碼（至少 8 個字元）',password),h('label',{},'再次輸入新密碼',confirmPassword),h('button',{class:'btn full',type:'submit'},'更新密碼'));
+  [password,confirmPassword].forEach(input=>input.addEventListener('input',()=>confirmPassword.setCustomValidity('')));
+  const back=h('button',{class:'ghost',onclick:()=>{if(!accountBusy){accountOpen=false;render()}}},'返回設定');
+  controls.push(back,nickname,password,confirmPassword,...nickForm.querySelectorAll('button'),...passwordForm.querySelectorAll('button'));
+  controls.forEach(c=>c.disabled=!canEdit());
+  return h('section',{class:'sec account-panel'},back,h('h2',{},'帳號管理'),h('p',{class:'mute'},'修改你在雙人空間中的暱稱與登入密碼。'),message,nickForm,passwordForm);
 }
 
 function setLog(k,v){
@@ -264,7 +301,7 @@ async function init(){
   await startCloud({
     onReady(user,adapter,data){me=user;ref=adapter;S=norm(data);ready=true;unsaved=false;render();},
     onUpdate(data){S=norm(data);incoming();},
-    idle(){return ready&&!saving&&!unsaved&&!typing();}
+    idle(){return ready&&!saving&&!unsaved&&!accountBusy&&!typing();}
   });
 }
 init();

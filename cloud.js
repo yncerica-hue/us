@@ -13,6 +13,10 @@ export async function startCloud({onReady,onUpdate,idle}){
   if(e.message?.includes('VERSION_CONFLICT'))return '另一位成員已更新資料。為避免覆蓋，請下載這次的內容後重新載入，再補上變更。';
   if(e.message?.includes('ROOM_UNAVAILABLE'))return '邀請碼無效或空間已滿。';
   if(e.message?.includes('Invalid login credentials'))return 'Email 或密碼不正確，或信箱尚未驗證。';
+  if(e.message?.includes('INVALID_NICKNAME'))return '暱稱請輸入 1 至 30 個字元。';
+  if(e.code==='same_password')return '新密碼不能與目前密碼相同。';
+  if(e.code==='weak_password')return '密碼強度不足，請使用更長的密碼。';
+  if(e.code==='reauthentication_needed'||e.code==='reauthentication_not_valid')return '請重新登入後再修改密碼。';
   return '操作失敗：'+(e.message||'請檢查網路後再試。');
  };
  async function rpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
@@ -62,6 +66,11 @@ export async function startCloud({onReady,onUpdate,idle}){
   onReady(user.id,{
    status(text){note.textContent=text;},
    async set(state){const result=await rpc('save_space',{space_id:room,expected_version:version,new_state:state});version=result.version;},
+   async updateNickname(nickname){
+    try{const result=await rpc('update_nickname',{nickname,expected_version:version});version=result.version;return result.state;}
+    catch(e){if(e.code==='PGRST202')throw Error('暱稱功能尚未啟用，請先在 Supabase 執行 supabase/account-management.sql。');if(e.message?.includes('VERSION_CONFLICT'))throw Error('另一位成員已更新資料，請返回設定並重新載入頁面後再試。');throw Error(errorText(e));}
+   },
+   async updatePassword(password){const {error}=await client.auth.updateUser({password});if(error)throw Error(errorText(error));},
    failed(state,e){note.textContent=errorText(e)+' 本次修改尚未存入雲端。';backup(state);root.append(button('重新載入雲端資料',()=>{if(confirm('確定重新載入？未儲存修改將捨棄，請先下載備份。'))location.reload();}));}
   },data.state);
   timer=setInterval(async()=>{

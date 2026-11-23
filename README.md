@@ -7,7 +7,7 @@
 ## 首次設定 Supabase（必要）
 
 1. 開啟你的 Supabase 專案 Dashboard > SQL Editor。
-2. 複製 `supabase/schema.sql` **全部內容**，執行一次。此檔建立資料表、存取限制及 4 個 RPC；不用將資料表設成公開，也不需要停用 RLS。
+2. 複製 `supabase/schema.sql` **全部內容**，執行一次。此檔建立資料表、存取限制及 5 個 RPC；不用將資料表設成公開，也不需要停用 RLS。
 3. 在 Authentication > Providers 確認 Email 登入已啟用。若啟用 Confirm email，註冊後須先完成信箱驗證。正式寄信量較大時依 Supabase 指示設定 SMTP。
 4. 在 Authentication > URL Configuration 設定 Site URL 為正式網站網址；開發時也可在 Redirect URLs 加入實際開發網址。GitHub Pages 網址預計為 `https://yncerica-hue.github.io/us/`，部署成功後才可使用。
 
@@ -47,6 +47,14 @@ npm run preview
 
 先前 HTML 版本的 `couple-app` localStorage 資料未刪除，但不會自動上傳或合併到新雲端空間。登入狀態儲存在瀏覽器，請在共用裝置用完後登出。
 
+## 帳號管理
+
+登入後進入「記帳 > 設定 > 帳號管理」，可修改自己的暱稱與登入密碼。密碼需至少 8 個字元並再次輸入確認；實際密碼規則依 Supabase 專案設定，更新成功後下次以新密碼登入。密碼只傳給 Supabase Auth，不會寫入雙人空間或備份。
+
+**既有網站須先更新資料庫一次：**在 Supabase Dashboard > SQL Editor 貼上並執行 `supabase/account-management.sql` 全部內容，以啟用暱稱修改。這份檔案可重複執行，不會刪除帳號或生活紀錄。新安裝直接執行完整 `supabase/schema.sql` 即可，不需另跑此檔。
+
+暱稱為 1 至 30 個字元，只能更新登入者本人；另一位成員的名稱保持原樣，約 5 秒內同步新暱稱。資料版本衝突時請返回設定並重新載入後再試。更改密碼不需要 SQL 更新；若 Supabase 要求重新驗證，請重新登入後再修改。
+
 ## 部署為公開網址
 
 已準備 `.github/workflows/pages.yml`，推送至 `main` 分支後會觸發部署流程；需先在 GitHub 啟用 Pages 的 GitHub Actions 來源。
@@ -62,6 +70,6 @@ npm run preview
 
 ## 存取與驗證範圍
 
-資料表開啟 RLS 並撤銷前端直接存取權限，只有登入帳號可呼叫 RPC；RPC 使用伺服器端成員關聯檢查權限，不信任前端提供的 members。邀請碼是加入資格，請勿公開。此版本未提供更換伴侶、刪除帳號、邀請碼輪替或忘記密碼介面。
+資料表開啟 RLS 並撤銷前端直接存取權限，只有登入帳號可呼叫 RPC；RPC 使用伺服器端成員關聯檢查權限，不信任前端提供的 members。邀請碼是加入資格，請勿公開。此版本未提供更換伴侶、刪除帳號、邀請碼輪替或未登入時的忘記密碼介面。
 
 目前完成本機建置、SQL 權限測試，以及以模擬 Auth／本機 SQL RPC 進行的雙瀏覽器操作測試。正式 Supabase 的 SQL 執行、Email 寄送、實際跨裝置同步與公開網址部署，須在上述設定完成後實測，不能以本機測試取代。
